@@ -3,8 +3,26 @@ from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from .models import CustomUser, Contest, Participant, EmailVerification
 
+class ContestRegistrationSerializer(serializers.ModelSerializer):
+    """Serializer para el registro público en el concurso"""
+    
+    class Meta:
+        model = CustomUser
+        fields = ['email', 'first_name', 'last_name', 'phone']
+        
+    def validate_email(self, value):
+        if CustomUser.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Este email ya está registrado.")
+        return value
+    
+    def create(self, validated_data):
+        # Crear usuario con username igual al email, sin contraseña inicialmente
+        validated_data['username'] = validated_data['email']
+        user = CustomUser.objects.create(**validated_data)
+        return user
+
 class UserRegistrationSerializer(serializers.ModelSerializer):
-    """Serializer para el registro inicial del usuario"""
+    """Serializer para el registro inicial del usuario (admin)"""
     password = serializers.CharField(write_only=True, required=False)
     password_confirm = serializers.CharField(write_only=True, required=False)
     
