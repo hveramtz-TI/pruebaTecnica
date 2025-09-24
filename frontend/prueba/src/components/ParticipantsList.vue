@@ -249,6 +249,11 @@ const fetchParticipants = async () => {
       throw new Error('No hay token de autenticación')
     }
 
+    console.log('Token enviado:', authStore.tokens.access_token)
+    console.log('Headers completos:', {
+      'Authorization': `Bearer ${authStore.tokens.access_token}`
+    })
+
     const response = await axios.get<ParticipantsResponse>(
       `${API_URL}/admin/participants/`, 
       {

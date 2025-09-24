@@ -14,6 +14,7 @@ urlpatterns = [
     path('admin/logout/', views.admin_logout, name='admin_logout'),
     path('admin/verify-token/', views.admin_verify_token, name='admin_verify_token'),
     
-    # Admin protected routes
+    # Admin management routes (protected)
     path('admin/participants/', views.admin_participants_list, name='admin_participants_list'),
+    path('admin/select-winner/', views.admin_select_winner, name='admin_select_winner'),
 ]

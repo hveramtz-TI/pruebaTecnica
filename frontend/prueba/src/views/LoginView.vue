@@ -77,14 +77,17 @@ onMounted(() => {
 
 const handleLogin = async () => {
   try {
-    const success = await authStore.login({
+    const result = await authStore.login({
       email: form.value.email,
       password: form.value.password
     })
 
-    if (success) {
+    if (result.success) {
       // Redirigir al dashboard del administrador
       router.push('/admin/dashboard')
+    } else {
+      // El error ya se maneja en el store, solo mostrarlo
+      console.error('Error de login:', result.error)
     }
   } catch (error) {
     console.error('Error en login:', error)

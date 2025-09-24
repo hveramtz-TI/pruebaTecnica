@@ -85,11 +85,27 @@ export const useAuthStore = defineStore('auth', {
           password: credentials.password
         })
 
-        const { user, tokens } = response.data
+        console.log('Respuesta del backend:', response.data)
 
-        // Calcular fecha de expiración (20 minutos)
+        // Verificar si la respuesta es exitosa
+        if (!response.data.success) {
+          this.error = response.data.message || 'Error al iniciar sesión'
+          return { success: false, error: this.error }
+        }
+
+        const { user, token, expires_in } = response.data
+
+        // Crear objeto de tokens compatible
+        const tokens = {
+          access_token: token,
+          expires_in: expires_in,
+          token_type: 'Bearer',
+          refresh_token: '' // No usado en este sistema
+        }
+
+        // Calcular fecha de expiración
         const expiryDate = new Date()
-        expiryDate.setSeconds(expiryDate.getSeconds() + tokens.expires_in)
+        expiryDate.setSeconds(expiryDate.getSeconds() + expires_in)
 
         // Guardar en el estado
         this.admin = user
@@ -103,10 +119,11 @@ export const useAuthStore = defineStore('auth', {
         localStorage.setItem('token_expiry', expiryDate.toISOString())
 
         // Configurar header de autorización
-        axios.defaults.headers.common['Authorization'] = `Bearer ${tokens.access_token}`
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
 
         return { success: true }
       } catch (error: unknown) {
+        console.error('Error completo:', error)
         const axiosError = error as { response?: { data?: { message?: string } } }
         this.error = axiosError.response?.data?.message || 'Error al iniciar sesión'
         return { success: false, error: this.error }

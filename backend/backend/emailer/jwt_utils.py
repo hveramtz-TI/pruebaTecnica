@@ -15,17 +15,29 @@ class JWTService:
         """
         Genera un token JWT para el usuario con expiración personalizada
         """
+        now = timezone.now()
+        exp_time = now + timedelta(minutes=expires_in_minutes)
+        
+        print(f"DEBUG JWT - Generando token para usuario {user.id}")
+        print(f"DEBUG JWT - Fecha actual: {now}")
+        print(f"DEBUG JWT - Fecha expiración: {exp_time}")
+        print(f"DEBUG JWT - Timestamp actual: {now.timestamp()}")
+        print(f"DEBUG JWT - Timestamp expiración: {exp_time.timestamp()}")
+        
         payload = {
             'user_id': user.id,
             'email': user.email,
             'is_staff': user.is_staff,
             'is_superuser': user.is_superuser,
-            'exp': timezone.now() + timedelta(minutes=expires_in_minutes),
-            'iat': timezone.now(),
-            'jti': str(uuid.uuid4())  # JWT ID único para poder invalidar tokens
+            'exp': exp_time.timestamp(),  # Convertir a timestamp explícitamente
+            'iat': now.timestamp(),      # Convertir a timestamp explícitamente
+            'jti': str(uuid.uuid4())     # JWT ID único para poder invalidar tokens
         }
         
+        print(f"DEBUG JWT - Payload completo: {payload}")
+        
         token = jwt.encode(payload, settings.SECRET_KEY, algorithm='HS256')
+        print(f"DEBUG JWT - Token generado: {token}")
         return token
     
     @staticmethod
@@ -34,12 +46,19 @@ class JWTService:
         Decodifica y valida un token JWT
         """
         try:
+            print(f"DEBUG JWT - Intentando decodificar token: {token}")
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=['HS256'])
+            print(f"DEBUG JWT - Token decodificado exitosamente: {payload}")
             return payload, None
-        except jwt.ExpiredSignatureError:
+        except jwt.ExpiredSignatureError as e:
+            print(f"DEBUG JWT - Token expirado: {e}")
             return None, 'Token ha expirado'
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError as e:
+            print(f"DEBUG JWT - Token inválido: {e}")
             return None, 'Token inválido'
+        except Exception as e:
+            print(f"DEBUG JWT - Error inesperado: {e}")
+            return None, f'Error inesperado: {str(e)}'
     
     @staticmethod
     def get_user_from_token(token):

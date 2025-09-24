@@ -10,6 +10,16 @@ app = Celery('backend')
 # la configuración cuando usa esta configuración
 app.config_from_object('django.conf:settings', namespace='CELERY')
 
+# Configuración explícita para Redis - DESPUÉS de cargar settings de Django
+app.conf.update(
+    broker_url='redis://localhost:6379/0',
+    result_backend='redis://localhost:6379/0',
+    task_serializer='json',
+    accept_content=['json'],
+    result_serializer='json',
+    timezone='America/Mexico_City',
+)
+
 # Cargar módulos de tareas desde todas las apps registradas
 app.autodiscover_tasks()
 

@@ -38,6 +38,9 @@
               <button class="action-btn primary" @click="showParticipants">
                 📋 Lista de Concursantes
               </button>
+              <button class="action-btn winner" @click="showWinnerSelection">
+                🏆 Sorteo de Ganador
+              </button>
               <button class="action-btn secondary" @click="showReports">
                 📊 Ver Reportes
               </button>
@@ -51,6 +54,10 @@
         <div v-if="activeSection" class="content-section">
           <div v-if="activeSection === 'participants'" class="section-content">
             <ParticipantsList />
+          </div>
+
+          <div v-if="activeSection === 'winner'" class="section-content">
+            <WinnerSelection />
           </div>
 
           <div v-if="activeSection === 'reports'" class="section-content">
@@ -79,6 +86,7 @@ import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import ParticipantsList from '@/components/ParticipantsList.vue'
+import WinnerSelection from '@/components/WinnerSelection.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -99,6 +107,10 @@ const handleLogout = async () => {
 
 const showParticipants = () => {
   activeSection.value = activeSection.value === 'participants' ? null : 'participants'
+}
+
+const showWinnerSelection = () => {
+  activeSection.value = activeSection.value === 'winner' ? null : 'winner'
 }
 
 const showReports = () => {
@@ -254,6 +266,19 @@ const showSettings = () => {
 
 .action-btn.success:hover {
   background-color: #218838;
+}
+
+.action-btn.winner {
+  background: linear-gradient(135deg, #FFD700, #FFA500);
+  color: #8B4513;
+  font-weight: bold;
+  border: 2px solid #FFD700;
+}
+
+.action-btn.winner:hover {
+  background: linear-gradient(135deg, #FFA500, #FF8C00);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(255, 215, 0, 0.4);
 }
 
 .content-section {

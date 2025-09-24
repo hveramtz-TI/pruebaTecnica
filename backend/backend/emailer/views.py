@@ -4,6 +4,11 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.db import transaction
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.utils.decorators import method_decorator
+from rest_framework.decorators import authentication_classes, permission_classes
+from django.views.decorators.http import require_http_methods
 from .models import CustomUser, Contest, Participant, EmailVerification
 from .serializers import ContestRegistrationSerializer, PasswordCreationSerializer, AdminCreateSerializer, AdminLoginSerializer
 from .tasks import send_verification_email
@@ -376,157 +381,7 @@ def admin_verify_token(request):
         return Response({
             'valid': False,
             'message': 'Error verificando token'
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)# ============ ADMIN AUTHENTICATION VIEWS ============
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def admin_login(request):
-    """
-    Endpoint para login de administrador.
-    Devuelve token JWT con expiración de 20 minutos.
-    """
-    email = request.data.get('email')
-    password = request.data.get('password')
-    
-    if not email or not password:
-        return Response({
-            'success': False,
-            'message': 'Email y contraseña son requeridos'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    from .jwt_auth import authenticate_admin_user, JWTAuthentication
-    
-    # Autenticar usuario administrador
-    user = authenticate_admin_user(email, password)
-    
-    if not user:
-        return Response({
-            'success': False,
-            'message': 'Credenciales inválidas o usuario sin permisos de administrador'
-        }, status=status.HTTP_401_UNAUTHORIZED)
-    
-    # Generar tokens JWT
-    tokens = JWTAuthentication.generate_tokens(user)
-    
-    return Response({
-        'success': True,
-        'message': 'Login exitoso',
-        'user': {
-            'id': user.id,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'is_staff': user.is_staff,
-            'is_superuser': user.is_superuser
-        },
-        'tokens': tokens
-    }, status=status.HTTP_200_OK)
-
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def admin_refresh_token(request):
-    """
-    Endpoint para renovar access token usando refresh token.
-    """
-    refresh_token = request.data.get('refresh_token')
-    
-    if not refresh_token:
-        return Response({
-            'success': False,
-            'message': 'Refresh token requerido'
-        }, status=status.HTTP_400_BAD_REQUEST)
-    
-    from .jwt_auth import JWTAuthentication
-    
-    # Renovar access token
-    new_tokens = JWTAuthentication.refresh_access_token(refresh_token)
-    
-    if not new_tokens:
-        return Response({
-            'success': False,
-            'message': 'Refresh token inválido o expirado'
-        }, status=status.HTTP_401_UNAUTHORIZED)
-    
-    return Response({
-        'success': True,
-        'message': 'Token renovado exitosamente',
-        'tokens': new_tokens
-    }, status=status.HTTP_200_OK)
-
-@api_view(['POST'])
-def admin_logout(request):
-    """
-    Endpoint para logout de administrador.
-    En una implementación más robusta, se mantendría una blacklist de tokens.
-    """
-    return Response({
-        'success': True,
-        'message': 'Logout exitoso'
-    }, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
-def admin_verify_token(request):
-    """
-    Endpoint para verificar si el token JWT del administrador es válido.
-    """
-    auth_header = request.META.get('HTTP_AUTHORIZATION')
-    if not auth_header or not auth_header.startswith('Bearer '):
-        return Response({
-            'valid': False,
-            'message': 'Token de autorización requerido'
-        }, status=status.HTTP_401_UNAUTHORIZED)
-    
-    token = auth_header.split(' ')[1]
-    
-    try:
-        payload, error = JWTService.decode_token(token)
-        
-        if error or not payload:
-            return Response({
-                'valid': False,
-                'message': f'Token inválido: {error or "Token no válido"}'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-        
-        # Verificar que el usuario existe y es staff
-        try:
-            user = CustomUser.objects.get(id=payload['user_id'], is_staff=True)
-            return Response({
-                'valid': True,
-                'user_id': user.id,
-                'email': user.email
-            }, status=status.HTTP_200_OK)
-        except CustomUser.DoesNotExist:
-            return Response({
-                'valid': False,
-                'message': 'Usuario no encontrado o sin permisos'
-            }, status=status.HTTP_401_UNAUTHORIZED)
-            
-    except Exception as e:
-        return Response({
-            'valid': False,
-            'message': f'Token inválido: {str(e)}'
-        }, status=status.HTTP_401_UNAUTHORIZED)
-
-@api_view(['GET'])
-def admin_profile(request):
-    """
-    Endpoint protegido para obtener perfil del administrador.
-    Requiere token JWT válido.
-    """
-    user = request.user
-    
-    return Response({
-        'success': True,
-        'user': {
-            'id': user.id,
-            'email': user.email,
-            'first_name': user.first_name,
-            'last_name': user.last_name,
-            'is_staff': user.is_staff,
-            'is_superuser': user.is_superuser,
-            'date_joined': user.date_joined
-        }
-    }, status=status.HTTP_200_OK)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)# ========== ADMIN AUTHENTICATION VIEWS ==========
 
 @api_view(['GET'])
 def admin_participants_list(request):
@@ -539,6 +394,9 @@ def admin_participants_list(request):
     # Aplicar manualmente la validación JWT
     auth_header = request.META.get('HTTP_AUTHORIZATION')
     
+    print(f"DEBUG - Authorization header recibido: {auth_header}")
+    print(f"DEBUG - Headers completos: {dict(request.META)}")
+    
     if not auth_header or not auth_header.startswith('Bearer '):
         return Response({
             'success': False,
@@ -547,9 +405,14 @@ def admin_participants_list(request):
     
     token = auth_header.split(' ')[1]
     
+    print(f"DEBUG - Token extraído: {token}")
+    
     try:
         # Decodificar el token
         payload, error = JWTService.decode_token(token)
+        
+        print(f"DEBUG - Payload decodificado: {payload}")
+        print(f"DEBUG - Error de decodificación: {error}")
         
         if error or not payload:
             return Response({
@@ -615,6 +478,148 @@ def admin_participants_list(request):
         return Response({
             'success': False,
             'message': f'Error al obtener la lista de participantes: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@csrf_exempt
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def admin_select_winner(request):
+    """
+    Endpoint protegido para seleccionar un ganador aleatorio del concurso.
+    Requiere token JWT de administrador válido.
+    """
+    import random
+    
+    # Validar token JWT
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return Response({
+            'success': False,
+            'message': 'Token de autorización requerido. Formato: Bearer <token>'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    token = auth_header.split(' ')[1]
+    
+    try:
+        # Decodificar el token
+        payload, error = JWTService.decode_token(token)
+        
+        if error or not payload:
+            return Response({
+                'success': False,
+                'message': f'Token inválido: {error or "Token no válido"}'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verificar que el usuario existe y es staff
+        try:
+            admin_user = CustomUser.objects.get(
+                id=payload['user_id'], 
+                is_staff=True,
+                is_active=True
+            )
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Usuario no encontrado o sin permisos de administrador'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Token inválido o expirado: {str(e)}'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Si llegamos aquí, el token es válido
+    try:
+        # Obtener el concurso activo
+        contest = Contest.objects.filter(is_active=True).first()
+        if not contest:
+            return Response({
+                'success': False,
+                'message': 'No hay concursos activos disponibles'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Verificar si ya hay un ganador
+        if contest.winner:
+            return Response({
+                'success': False,
+                'message': 'Ya se ha seleccionado un ganador para este concurso',
+                'winner': {
+                    'name': f"{contest.winner.first_name} {contest.winner.last_name}",
+                    'email': contest.winner.email,
+                    'selected_at': contest.winner.date_joined.isoformat()
+                }
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Obtener participantes elegibles (email verificado y contraseña creada)
+        eligible_participants = Participant.objects.filter(
+            contest=contest,
+            is_eligible=True,
+            user__is_email_verified=True,
+            user__password__isnull=False
+        ).exclude(user__password='')
+        
+        if not eligible_participants.exists():
+            return Response({
+                'success': False,
+                'message': 'No hay participantes elegibles para el sorteo'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Seleccionar ganador aleatorio
+        winner_participant = random.choice(list(eligible_participants))
+        winner_user = winner_participant.user
+        
+        # Actualizar el concurso con el ganador
+        contest.winner = winner_user
+        contest.save()
+        
+        # Enviar email de notificación al ganador
+        try:
+            from .tasks import send_winner_notification_email
+            send_winner_notification_email.delay(winner_user.id, contest.id)
+        except Exception as email_error:
+            # Si falla el envío asíncrono, intentar síncrono
+            try:
+                send_winner_notification_email(winner_user.id, contest.id)
+            except Exception as sync_error:
+                # Log error but don't fail the winner selection
+                print(f"Error enviando email de ganador: {sync_error}")
+        
+        # Preparar respuesta con información del ganador
+        winner_data = {
+            'id': winner_user.id,
+            'name': f"{winner_user.first_name} {winner_user.last_name}",
+            'email': winner_user.email,
+            'phone': winner_user.phone or 'No especificado',
+            'registration_date': winner_participant.registered_at.isoformat(),
+            'selected_at': timezone.now().isoformat(),
+            'contest_name': contest.name
+        }
+        
+        # Estadísticas del sorteo
+        total_participants = eligible_participants.count()
+        
+        return Response({
+            'success': True,
+            'message': '¡Ganador seleccionado exitosamente!',
+            'winner': winner_data,
+            'contest': {
+                'id': contest.id,
+                'name': contest.name,
+                'total_eligible': total_participants
+            },
+            'selected_by': {
+                'admin_email': admin_user.email,
+                'admin_name': f"{admin_user.first_name} {admin_user.last_name}"
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Error al seleccionar ganador: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def _get_verification_status(user, participant):
