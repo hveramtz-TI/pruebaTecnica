@@ -118,3 +118,66 @@ class ParticipantSerializer(serializers.ModelSerializer):
         model = Participant
         fields = ['id', 'user', 'user_email', 'user_name', 'contest', 'registered_at', 'is_eligible']
         read_only_fields = ['registered_at', 'is_eligible']
+
+class AdminCreateSerializer(serializers.ModelSerializer):
+    """Serializer para crear administradores"""
+    password = serializers.CharField(write_only=True, min_length=8)
+    password_confirm = serializers.CharField(write_only=True)
+    
+    class Meta:
+        model = CustomUser
+        fields = ['email', 'first_name', 'last_name', 'password', 'password_confirm']
+        
+    def validate_email(self, value):
+        if CustomUser.objects.filter(email=value).exists():
+            raise serializers.ValidationError("Ya existe un administrador con este email.")
+        return value
+    
+    def validate(self, attrs):
+        if attrs['password'] != attrs['password_confirm']:
+            raise serializers.ValidationError("Las contraseñas no coinciden.")
+        
+        # Validar fortaleza de contraseña
+        validate_password(attrs['password'])
+        return attrs
+    
+    def create(self, validated_data):
+        validated_data.pop('password_confirm')
+        password = validated_data.pop('password')
+        
+        # Crear usuario administrador
+        validated_data['username'] = validated_data['email']
+        validated_data['is_staff'] = True  # Permiso de staff
+        validated_data['is_superuser'] = True  # Permiso de superusuario
+        validated_data['is_email_verified'] = True  # Admin ya está verificado
+        
+        user = CustomUser.objects.create(**validated_data)
+        user.set_password(password)
+        user.save()
+        
+        return user
+
+class AdminLoginSerializer(serializers.Serializer):
+    """Serializer para login de administradores"""
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True)
+    
+    def validate(self, attrs):
+        email = attrs.get('email')
+        password = attrs.get('password')
+        
+        if email and password:
+            # Autenticar usuario
+            user = authenticate(username=email, password=password)
+            if not user:
+                raise serializers.ValidationError("Credenciales inválidas.")
+            
+            # Verificar que sea administrador
+            if not user.is_staff:
+                raise serializers.ValidationError("Acceso denegado. Solo administradores pueden acceder.")
+            
+            attrs['user'] = user
+        else:
+            raise serializers.ValidationError("Email y contraseña son requeridos.")
+        
+        return attrs

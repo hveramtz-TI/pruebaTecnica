@@ -63,6 +63,9 @@ const form = ref({
 })
 
 onMounted(() => {
+  // Inicializar estado desde localStorage
+  authStore.initializeFromStorage()
+  
   // Si ya está autenticado, redirigir al dashboard
   if (authStore.isLoggedIn) {
     router.push('/admin/dashboard')
@@ -73,14 +76,18 @@ onMounted(() => {
 })
 
 const handleLogin = async () => {
-  const result = await authStore.login({
-    email: form.value.email,
-    password: form.value.password
-  })
+  try {
+    const success = await authStore.login({
+      email: form.value.email,
+      password: form.value.password
+    })
 
-  if (result.success) {
-    // Redirigir al dashboard del administrador
-    router.push('/admin/dashboard')
+    if (success) {
+      // Redirigir al dashboard del administrador
+      router.push('/admin/dashboard')
+    }
+  } catch (error) {
+    console.error('Error en login:', error)
   }
 }
 </script>

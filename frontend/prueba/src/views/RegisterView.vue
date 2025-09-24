@@ -5,6 +5,30 @@
       
       <form @submit.prevent="handleRegister">
         <div class="form-group">
+          <label for="firstName">Nombre:</label>
+          <input
+            id="firstName"
+            v-model="form.firstName"
+            type="text"
+            placeholder="Juan"
+            required
+            :disabled="authStore.loading"
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="lastName">Apellido:</label>
+          <input
+            id="lastName"
+            v-model="form.lastName"
+            type="text"
+            placeholder="Pérez"
+            required
+            :disabled="authStore.loading"
+          />
+        </div>
+
+        <div class="form-group">
           <label for="email">Email:</label>
           <input
             id="email"
@@ -76,6 +100,8 @@ const router = useRouter()
 const authStore = useAuthStore()
 
 const form = ref({
+  firstName: '',
+  lastName: '',
   email: '',
   password: '',
   confirmPassword: ''
@@ -88,7 +114,7 @@ const passwordMismatch = computed(() => {
 
 onMounted(() => {
   // Si ya está autenticado, redirigir al dashboard
-  if (authStore.isLoggedIn) {
+  if (authStore.isAuthenticated) {
     router.push('/admin/dashboard')
   }
   
@@ -101,15 +127,21 @@ const handleRegister = async () => {
     return
   }
 
-  const result = await authStore.register({
-    email: form.value.email,
-    password: form.value.password,
-    confirmPassword: form.value.confirmPassword
-  })
+  try {
+    const success = await authStore.createAdmin({
+      first_name: form.value.firstName,
+      last_name: form.value.lastName,
+      email: form.value.email,
+      password: form.value.password,
+      password_confirm: form.value.confirmPassword
+    })
 
-  if (result.success) {
-    // Redirigir al dashboard del administrador
-    router.push('/admin/dashboard')
+    if (success) {
+      // Redirigir al dashboard del administrador
+      router.push('/admin/dashboard')
+    }
+  } catch (error) {
+    console.error('Error en registro:', error)
   }
 }
 </script>

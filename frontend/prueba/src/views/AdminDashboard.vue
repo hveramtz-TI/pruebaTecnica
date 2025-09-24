@@ -4,7 +4,7 @@
       <div class="header-content">
         <h1>Panel de Administrador</h1>
         <div class="admin-info">
-          <span>Bienvenido, {{ authStore.currentAdmin?.email }}</span>
+          <span>Bienvenido, {{ authStore.admin?.email }}</span>
           <button @click="handleLogout" class="logout-btn">
             Cerrar Sesión
           </button>
@@ -21,10 +21,10 @@
           <div class="admin-details">
             <h3>Información del Administrador:</h3>
             <div class="detail-item">
-              <strong>ID:</strong> {{ authStore.currentAdmin?.id }}
+              <strong>ID:</strong> {{ authStore.admin?.id }}
             </div>
             <div class="detail-item">
-              <strong>Email:</strong> {{ authStore.currentAdmin?.email }}
+              <strong>Email:</strong> {{ authStore.admin?.email }}
             </div>
             <div class="detail-item">
               <strong>Estado:</strong> 
@@ -35,30 +35,26 @@
           <div class="actions-section">
             <h3>Acciones Disponibles:</h3>
             <div class="action-buttons">
-              <button class="action-btn primary" @click="showUsers">
-                Gestionar Usuarios
+              <button class="action-btn primary" @click="showParticipants">
+                📋 Lista de Concursantes
               </button>
               <button class="action-btn secondary" @click="showReports">
-                Ver Reportes
+                📊 Ver Reportes
               </button>
               <button class="action-btn success" @click="showSettings">
-                Configuraciones
+                ⚙️ Configuraciones
               </button>
             </div>
           </div>
         </div>
 
         <div v-if="activeSection" class="content-section">
-          <div v-if="activeSection === 'users'" class="section-content">
-            <h3>Gestión de Usuarios</h3>
-            <p>Aquí podrás gestionar todos los usuarios del sistema.</p>
-            <div class="placeholder-content">
-              <p>🔧 Funcionalidad en desarrollo...</p>
-            </div>
+          <div v-if="activeSection === 'participants'" class="section-content">
+            <ParticipantsList />
           </div>
 
           <div v-if="activeSection === 'reports'" class="section-content">
-            <h3>Reportes del Sistema</h3>
+            <h3>📊 Reportes del Sistema</h3>
             <p>Visualiza estadísticas y reportes importantes.</p>
             <div class="placeholder-content">
               <p>📊 Funcionalidad en desarrollo...</p>
@@ -66,7 +62,7 @@
           </div>
 
           <div v-if="activeSection === 'settings'" class="section-content">
-            <h3>Configuraciones</h3>
+            <h3>⚙️ Configuraciones</h3>
             <p>Ajusta las configuraciones del sistema.</p>
             <div class="placeholder-content">
               <p>⚙️ Funcionalidad en desarrollo...</p>
@@ -82,6 +78,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import ParticipantsList from '@/components/ParticipantsList.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -90,18 +87,18 @@ const activeSection = ref<string | null>(null)
 
 onMounted(() => {
   // Verificar que el usuario esté autenticado
-  if (!authStore.isLoggedIn) {
-    router.push('/login')
+  if (!authStore.isAuthenticated) {
+    router.push('/admin/login')
   }
 })
 
-const handleLogout = () => {
-  authStore.logout()
-  router.push('/login')
+const handleLogout = async () => {
+  await authStore.logout()
+  router.push('/') // Redirigir a la ruta base (contest)
 }
 
-const showUsers = () => {
-  activeSection.value = activeSection.value === 'users' ? null : 'users'
+const showParticipants = () => {
+  activeSection.value = activeSection.value === 'participants' ? null : 'participants'
 }
 
 const showReports = () => {
@@ -262,8 +259,17 @@ const showSettings = () => {
 .content-section {
   background: white;
   border-radius: 8px;
-  padding: 2rem;
+  padding: 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.section-content {
+  padding: 2rem;
+}
+
+.section-content:has(.participants-container) {
+  padding: 0;
 }
 
 .section-content h3 {

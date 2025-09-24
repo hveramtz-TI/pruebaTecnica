@@ -70,7 +70,7 @@ router.beforeEach((to, from, next) => {
   const authStore = useAuthStore()
   
   // Inicializar la autenticación desde localStorage
-  authStore.initAuth()
+  authStore.initializeFromStorage()
   
   // Actualizar el título de la página
   if (to.meta.title) {
@@ -88,14 +88,14 @@ router.beforeEach((to, from, next) => {
   }
 
   // Verificar si la ruta requiere autenticación
-  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     // Redirigir al login de admin si no está autenticado
     next('/admin/login')
     return
   }
 
   // Verificar si la ruta solo es para invitados (no autenticados)
-  if (to.meta.requiresGuest && authStore.isLoggedIn) {
+  if (to.meta.requiresGuest && authStore.isAuthenticated) {
     // Redirigir al dashboard si ya está autenticado
     next('/admin/dashboard')
     return

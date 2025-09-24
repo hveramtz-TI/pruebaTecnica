@@ -9,8 +9,11 @@ urlpatterns = [
     path('reset-database/', views.reset_database_for_testing, name='reset_database_testing'),  # ⚠️ SOLO DESARROLLO
     
     # Admin authentication routes
+    path('admin/create/', views.admin_create, name='admin_create'),
     path('admin/login/', views.admin_login, name='admin_login'),
-    path('admin/refresh-token/', views.admin_refresh_token, name='admin_refresh_token'),
     path('admin/logout/', views.admin_logout, name='admin_logout'),
-    path('admin/profile/', views.admin_profile, name='admin_profile'),  # Ruta protegida
+    path('admin/verify-token/', views.admin_verify_token, name='admin_verify_token'),
+    
+    # Admin protected routes
+    path('admin/participants/', views.admin_participants_list, name='admin_participants_list'),
 ]

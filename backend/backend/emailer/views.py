@@ -5,8 +5,9 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.db import transaction
 from .models import CustomUser, Contest, Participant, EmailVerification
-from .serializers import ContestRegistrationSerializer, PasswordCreationSerializer
+from .serializers import ContestRegistrationSerializer, PasswordCreationSerializer, AdminCreateSerializer, AdminLoginSerializer
 from .tasks import send_verification_email
+from .jwt_utils import JWTService, TokenBlacklistService
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -209,12 +210,173 @@ def reset_database_for_testing(request):
             }, status=status.HTTP_200_OK)
             
     except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Error limpiando base de datos: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# ========== VISTAS DE ADMINISTRADOR ==========
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def admin_create(request):
+    """
+    Endpoint para crear administradores del hotel.
+    """
+    serializer = AdminCreateSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        try:
+            admin_user = serializer.save()
+            return Response({
+                'success': True,
+                'message': 'Administrador creado exitosamente.',
+                'admin': {
+                    'id': admin_user.id,
+                    'email': admin_user.email,
+                    'name': admin_user.get_full_name(),
+                    'is_staff': admin_user.is_staff
+                }
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
             return Response({
                 'success': False,
-                'message': f'Error limpiando base de datos: {str(e)}'
+                'message': 'Error creando administrador'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    else:
+        return Response({
+            'success': False,
+            'message': 'Error en los datos proporcionados',
+            'field_errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
-# ============ ADMIN AUTHENTICATION VIEWS ============
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def admin_login(request):
+    """
+    Endpoint para login de administradores.
+    Devuelve token JWT con expiración de 20 minutos.
+    """
+    serializer = AdminLoginSerializer(data=request.data)
+    
+    if serializer.is_valid():
+        user = serializer.validated_data['user']
+        
+        try:
+            # Generar token JWT con expiración de 20 minutos
+            token = JWTService.generate_token(user, expires_in_minutes=20)
+            
+            return Response({
+                'success': True,
+                'message': 'Login exitoso',
+                'token': token,
+                'expires_in': 20 * 60,  # 20 minutos en segundos
+                'user': {
+                    'id': user.id,
+                    'email': user.email,
+                    'name': user.get_full_name(),
+                    'is_staff': user.is_staff
+                }
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                'success': False,
+                'message': 'Error generando token de acceso'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    else:
+        return Response({
+            'success': False,
+            'message': 'Credenciales inválidas',
+            'field_errors': serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def admin_logout(request):
+    """
+    Endpoint para logout de administradores.
+    Invalida el token JWT actual.
+    """
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return Response({
+            'success': False,
+            'message': 'Token de autorización requerido'
+        }, status=status.HTTP_400_BAD_REQUEST)
+    
+    token = auth_header.split(' ')[1]
+    
+    try:
+        # Agregar token a lista negra
+        if TokenBlacklistService.blacklist_token(token):
+            return Response({
+                'success': True,
+                'message': 'Logout exitoso'
+            }, status=status.HTTP_200_OK)
+        else:
+            return Response({
+                'success': False,
+                'message': 'Token inválido'
+            }, status=status.HTTP_400_BAD_REQUEST)
+    
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': 'Error cerrando sesión'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+def admin_verify_token(request):
+    """
+    Endpoint para verificar validez del token actual.
+    Requiere autenticación.
+    """
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return Response({
+            'valid': False,
+            'message': 'Token de autorización requerido'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    token = auth_header.split(' ')[1]
+    
+    try:
+        # Verificar si el token está en lista negra
+        if TokenBlacklistService.is_token_blacklisted(token):
+            return Response({
+                'valid': False,
+                'message': 'Token invalidado'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verificar validez del token
+        user, error = JWTService.get_user_from_token(token)
+        
+        if error:
+            return Response({
+                'valid': False,
+                'message': error
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        return Response({
+            'valid': True,
+            'user': {
+                'id': user.id,
+                'email': user.email,
+                'name': user.get_full_name(),
+                'is_staff': user.is_staff
+            }
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'valid': False,
+            'message': 'Error verificando token'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)# ============ ADMIN AUTHENTICATION VIEWS ============
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -303,6 +465,49 @@ def admin_logout(request):
     }, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
+def admin_verify_token(request):
+    """
+    Endpoint para verificar si el token JWT del administrador es válido.
+    """
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return Response({
+            'valid': False,
+            'message': 'Token de autorización requerido'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    token = auth_header.split(' ')[1]
+    
+    try:
+        payload, error = JWTService.decode_token(token)
+        
+        if error or not payload:
+            return Response({
+                'valid': False,
+                'message': f'Token inválido: {error or "Token no válido"}'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verificar que el usuario existe y es staff
+        try:
+            user = CustomUser.objects.get(id=payload['user_id'], is_staff=True)
+            return Response({
+                'valid': True,
+                'user_id': user.id,
+                'email': user.email
+            }, status=status.HTTP_200_OK)
+        except CustomUser.DoesNotExist:
+            return Response({
+                'valid': False,
+                'message': 'Usuario no encontrado o sin permisos'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+    except Exception as e:
+        return Response({
+            'valid': False,
+            'message': f'Token inválido: {str(e)}'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+
+@api_view(['GET'])
 def admin_profile(request):
     """
     Endpoint protegido para obtener perfil del administrador.
@@ -322,3 +527,105 @@ def admin_profile(request):
             'date_joined': user.date_joined
         }
     }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def admin_participants_list(request):
+    """
+    Endpoint protegido para obtener la lista de participantes del concurso.
+    Requiere token JWT de administrador válido.
+    """
+    from .decorators import jwt_required
+    
+    # Aplicar manualmente la validación JWT
+    auth_header = request.META.get('HTTP_AUTHORIZATION')
+    
+    if not auth_header or not auth_header.startswith('Bearer '):
+        return Response({
+            'success': False,
+            'message': 'Token de autorización requerido. Formato: Bearer <token>'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    token = auth_header.split(' ')[1]
+    
+    try:
+        # Decodificar el token
+        payload, error = JWTService.decode_token(token)
+        
+        if error or not payload:
+            return Response({
+                'success': False,
+                'message': f'Token inválido: {error or "Token no válido"}'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+        
+        # Verificar que el usuario existe y es staff
+        try:
+            user = CustomUser.objects.get(
+                id=payload['user_id'], 
+                is_staff=True,
+                is_active=True
+            )
+        except CustomUser.DoesNotExist:
+            return Response({
+                'success': False,
+                'message': 'Usuario no encontrado o sin permisos de administrador'
+            }, status=status.HTTP_401_UNAUTHORIZED)
+            
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Token inválido o expirado: {str(e)}'
+        }, status=status.HTTP_401_UNAUTHORIZED)
+    
+    # Si llegamos aquí, el token es válido
+    try:
+        # Obtener todos los participantes con información completa
+        participants = []
+        
+        for participant in Participant.objects.all().order_by('-registered_at'):
+            # Obtener información del usuario relacionado
+            user = participant.user
+            
+            # Verificar si el email está verificado
+            is_email_verified = user.is_email_verified
+            
+            # Obtener información adicional
+            participant_data = {
+                'id': participant.id,
+                'name': f"{user.first_name} {user.last_name}".strip() or 'Sin nombre',
+                'email': user.email,
+                'phone': user.phone or 'No especificado',
+                'is_eligible': participant.is_eligible,
+                'is_email_verified': is_email_verified,
+                'has_password': bool(user.password),  # Indica si completó el registro
+                'registration_date': participant.registered_at.isoformat(),
+                'verification_status': _get_verification_status(user, participant)
+            }
+            
+            participants.append(participant_data)
+        
+        return Response({
+            'success': True,
+            'participants': participants,
+            'total_count': len(participants),
+            'verified_count': len([p for p in participants if p['is_email_verified']]),
+            'eligible_count': len([p for p in participants if p['is_eligible']])
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        return Response({
+            'success': False,
+            'message': f'Error al obtener la lista de participantes: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+def _get_verification_status(user, participant):
+    """
+    Función auxiliar para determinar el estado de verificación del participante
+    """
+    if not user.is_email_verified:
+        return 'Email pendiente'
+    elif not user.password:
+        return 'Contraseña pendiente'
+    elif not participant.is_eligible:
+        return 'No elegible'
+    else:
+        return 'Completamente verificado'
