@@ -418,6 +418,138 @@ JWT_REFRESH_TOKEN_LIFETIME=7
 3. Descomentar las líneas de configuración SMTP en `.env`
 4. Cambiar `EMAIL_BACKEND` de `console` a `smtp`
 
+## 📮 Cómo Cambiar de Consola a Emails Reales (Paso a Paso)
+
+Si deseas que el sistema envíe emails reales en lugar de mostrarlos en consola, sigue estos pasos:
+
+### **Opción 1: Usando Gmail (Recomendado para testing)**
+
+#### Paso 1: Configurar Gmail App Password
+1. Ir a tu cuenta de Google: https://myaccount.google.com/
+2. En "Seguridad" → "Verificación en dos pasos" (debe estar activada)
+3. En "Contraseñas de aplicaciones" → "Generar contraseña"
+4. Seleccionar "Correo" y "Otro" → Escribir "Django Sorteo"
+5. **Copiar la contraseña generada** (16 caracteres sin espacios)
+
+#### Paso 2: Editar archivo `.env`
+Abrir `backend/backend/.env` y cambiar estas líneas:
+
+```properties
+# CAMBIAR ESTA LÍNEA:
+EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+
+# POR ESTA:
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+
+# DESCOMENTAR Y CONFIGURAR ESTAS LÍNEAS:
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=tu-email@gmail.com
+EMAIL_HOST_PASSWORD=la-app-password-de-16-caracteres
+DEFAULT_FROM_EMAIL=tu-email@gmail.com
+```
+
+#### Paso 3: Reiniciar el servidor Django
+```bash
+# Detener el servidor (Ctrl+C)
+# Volver a iniciar
+python manage.py runserver
+```
+
+### **Opción 2: Usando otro proveedor SMTP**
+
+#### Para Outlook/Hotmail:
+```properties
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp-mail.outlook.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=tu-email@outlook.com
+EMAIL_HOST_PASSWORD=tu-password
+```
+
+#### Para Yahoo:
+```properties
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.mail.yahoo.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=tu-email@yahoo.com
+EMAIL_HOST_PASSWORD=tu-app-password
+```
+
+#### Para SMTP personalizado:
+```properties
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=tu-servidor-smtp.com
+EMAIL_PORT=587  # o 465 para SSL
+EMAIL_USE_TLS=True  # o False si usas SSL
+EMAIL_HOST_USER=tu-usuario-smtp
+EMAIL_HOST_PASSWORD=tu-password-smtp
+```
+
+### **Paso 3: Probar la configuración**
+
+#### Método 1: Desde Django Shell
+```bash
+# Acceder a Django shell
+python manage.py shell
+
+# Probar envío de email
+from django.core.mail import send_mail
+send_mail(
+    'Test Email',
+    'Este es un email de prueba.',
+    'tu-email@gmail.com',
+    ['destinatario@ejemplo.com'],
+    fail_silently=False,
+)
+```
+
+#### Método 2: Registrar un usuario de prueba
+1. Ir a http://localhost:5173/register
+2. Usar tu email real
+3. Verificar que llegue el email de verificación
+
+### **Paso 4: Volver a consola (si es necesario)**
+
+Para volver al modo consola, simplemente cambiar en `.env`:
+```properties
+# Cambiar de:
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+
+# A:
+EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+```
+
+### **🔧 Troubleshooting - Emails Reales**
+
+**Error: SMTPAuthenticationError**
+- Verificar que el email y password sean correctos
+- Para Gmail: usar App Password, no la contraseña normal
+- Verificar que la verificación en dos pasos esté activada
+
+**Error: SMTPServerDisconnected**
+- Verificar `EMAIL_HOST` y `EMAIL_PORT`
+- Probar cambiar `EMAIL_USE_TLS=True` por `EMAIL_USE_SSL=True`
+
+**Error: Emails no llegan**
+- Revisar carpeta de SPAM/correo no deseado
+- Verificar que `DEFAULT_FROM_EMAIL` sea válido
+- Probar con otro email de destino
+
+**Emails llegan pero sin formato**
+- Verificar que el cliente de email soporte HTML
+- Los emails tienen fallback a texto plano automáticamente
+
+### **⚠️ Importante para Producción**
+
+- **Nunca** subir credenciales reales al repositorio
+- Usar variables de entorno del servidor en producción
+- Configurar límites de envío para evitar ser marcado como SPAM
+- Considerar servicios como SendGrid, Mailgun o Amazon SES para volumen alto
+
 ## 🎯 Endpoints de la API
 
 ### Base URL
