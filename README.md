@@ -93,7 +93,7 @@ Aplicación web completa para un sorteo de San Valentín donde los participantes
 
 2. **Envío Automático de Email**
    - Tarea Celery: `send_verification_email`
-   - Email HTML con tema San Valentín
+   - Email HTML con tema San Valentín (aparece en consola del servidor)
    - Enlace único: `http://frontend/verify/{token}`
    - Token expira en 24 horas
 
@@ -129,7 +129,7 @@ Aplicación web completa para un sorteo de San Valentín donde los participantes
 
 4. **Email de Notificación al Ganador**
    - Tarea Celery: `send_winner_notification_email`
-   - Diseño especial de celebración
+   - Diseño especial de celebración (aparece en consola del servidor)
    - Detalles del premio: 2 noches todo pagado
    - Instrucciones para reclamar premio
 
@@ -395,24 +395,28 @@ JWT_REFRESH_TOKEN_LIFETIME=7
 ### Tareas Asíncronas Implementadas
 
 1. **Email de Verificación** (`send_verification_email`)
-   - Se envía cuando un usuario se registra
+   - Se procesa cuando un usuario se registra
    - Contiene enlace para verificar email y crear contraseña
-   - Diseño HTML responsivo con tema de San Valentín
+   - Diseño HTML responsivo con tema de San Valentín (aparece en consola)
 
 2. **Email de Ganador** (`send_winner_notification_email`)
-   - Se envía cuando un administrador selecciona un ganador
+   - Se procesa cuando un administrador selecciona un ganador
    - Notificación celebratoria con detalles del premio
-   - Diseño HTML especial para la ocasión
+   - Diseño HTML especial para la ocasión (aparece en consola)
 
 ### Configuración de Email
 
-**Para Desarrollo (Console Backend):**
-Los emails se muestran en la consola del servidor Django.
+**Para Desarrollo (Console Backend) - CONFIGURACIÓN ACTUAL:**
+- Los emails NO se envían realmente por correo electrónico
+- Todo el contenido HTML del email aparece en la **consola del servidor Django**
+- Esto permite probar el sistema sin configurar un proveedor de email real
+- El enlace de verificación se puede copiar manualmente desde la consola
 
-**Para Producción (SMTP):**
+**Para Producción (SMTP) - CONFIGURACIÓN OPCIONAL:**
 1. Configurar las variables de entorno de email en `.env`
 2. Para Gmail, usar App Password (no contraseña regular)
 3. Descomentar las líneas de configuración SMTP en `.env`
+4. Cambiar `EMAIL_BACKEND` de `console` a `smtp`
 
 ## 🎯 Endpoints de la API
 
@@ -623,7 +627,7 @@ Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
 ```json
 {
   "success": true,
-  "message": "¡Ganador seleccionado! Se ha enviado un correo de notificación.",
+  "message": "¡Ganador seleccionado! La notificación aparecerá en la consola del servidor.",
   "winner": {
     "id": "550e8400-e29b-41d4-a716-446655440000",
     "full_name": "María García López",
@@ -785,8 +789,9 @@ Authorization: Bearer <your-jwt-token>
 - Verificar conexión a Redis
 - En Windows usar: `--pool=solo`
 
-**Error: Email not sending**
-- En desarrollo: verificar logs en consola Django
+**Error: Email not appearing in console**
+- En desarrollo: verificar que Celery worker esté ejecutándose
+- Verificar logs en la consola del servidor Django (no se envían emails reales)
 - En producción: verificar configuración SMTP y credenciales
 
 **Error: JWT token invalid**
